@@ -2352,10 +2352,7 @@ class HPE3PARCommon(object):
                     LOG.error("Exception: %s", ex)
                     raise exception.CinderException(ex)
 
-            if (self._volume_of_replicated_type(volume,
-                                                hpe_tiramisu_check=True)
-               and self._do_volume_replication_setup(volume)):
-                replication_flag = True
+           
 
         except hpeexceptions.HTTPConflict:
             msg = _("Volume (%s) already exists on array") % volume_name
@@ -2518,11 +2515,26 @@ class HPE3PARCommon(object):
                     type_info['hpe3par_keys'])
                 # make the 3PAR copy the contents.
                 # can't delete the original until the copy is done.
-                self._copy_volume(snapshot['name'], vol_name, cpg=cpg,
+                task_id = self._copy_volume(snapshot['name'], vol_name, cpg=cpg,
                                   snap_cpg=type_info['snap_cpg'],
                                   tpvv=type_info['tpvv'],
                                   tdvv=type_info['tdvv'],
                                   compression=compression_val)
+
+                # Wait till the clone operation completes.
+                LOG.debug('Copy volume scheduled: convert_to_base_volume: '
+                          'id=%s.', volume['id'])
+               
+                task_status = self._wait_for_task_completion(task_id)
+               
+                if task_status['status'] is not self.client.TASK_DONE:
+                    dbg = {'status': task_status, 'id': volume['id']}
+                    msg = _('Copy volume task failed: convert_to_base_volume: '
+                            'id=%(id)s, status=%(status)s.') % dbg
+                    raise exception.CinderException(msg)
+                else:
+                    LOG.debug('Copy volume completed: convert_to_base_volume: '
+                              'id=%s.', volume['id'])
 
                 if qos or vvs_name or flash_cache is not None:
                     try:
@@ -2576,6 +2588,11 @@ class HPE3PARCommon(object):
                 else:
                     LOG.debug('Copy volume completed: create_cloned_volume: '
                               'id=%s.', volume['id'])
+                              
+                 if (self._volume_of_replicated_type(volume,
+                                                hpe_tiramisu_check=True)
+               and self._do_volume_replication_setup(volume)):
+                replication_flag = True
 
                 return model_update
 
