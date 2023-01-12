@@ -2588,11 +2588,14 @@ class HPE3PARCommon(object):
                 else:
                     LOG.debug('Copy volume completed: create_cloned_volume: '
                               'id=%s.', volume['id'])
-                              
-                 if (self._volume_of_replicated_type(volume,
-                                                hpe_tiramisu_check=True)
-               and self._do_volume_replication_setup(volume)):
-                replication_flag = True
+               
+                # v2 replication check
+                replication_flag = False
+                if (self._volume_of_replicated_type(volume,
+                                                    hpe_tiramisu_check=True)
+                   and self._do_volume_replication_setup(volume)):
+                    replication_flag = True
+
 
                 return model_update
 
